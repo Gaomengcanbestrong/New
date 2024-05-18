@@ -1,0 +1,114 @@
+#include <iostream>
+#include <vector>
+#include <algorithm>
+#include <random>
+#include <chrono>
+
+using namespace std;
+
+// 生成 [a, b] 范围内的随机有理数
+double randomRational(double a, double b) {
+    static random_device rd;
+    static mt19937 gen(rd());
+    uniform_real_distribution<> dis(a, b);
+    return dis(gen);
+}
+
+// 将整数转换为二进制字符串
+string intToBin(int num) {
+    string bin = "";
+    while (num) {
+        bin = to_string(num % 2) + bin;
+        num /= 2;
+    }
+    return bin;
+}
+
+// 从二进制字符串转换为整数
+int binToInt(string bin) {
+    int num = 0;
+    for (char c : bin) {
+        num = num * 2 + (c - '0');
+    }
+    return num;
+}
+
+int main() {
+    // 初始时刻 2RDM = 0
+    double twoRDM = 0;
+
+    // 生成表 A
+    vector<pair<int, double>> tableA(100000);
+    for (int i = 0; i < 100000; i++) {
+        int num = rand() % 1001100010010110 + 1;
+        tableA[i] = {num, randomRational(-1, 1)};
+    }
+
+    // 对表 A 按二进制数值大小排序
+    sort(tableA.begin(), tableA.end());
+
+    // 生成表 B
+    vector<pair<int, double>> tableB(100000);
+    for (int i = 0; i < 100000; i++) {
+        tableB[i] = tableA[i];
+    }
+
+    // 对表 B 中的每个数进行变换,生成表 a_i 和 b_i
+    auto start = chrono::high_resolution_clock::now();
+    for (int i = 0; i < 100000; i++) {
+        int D_i = tableB[i].first;
+        double x_i = tableB[i].second;
+        string bin = intToBin(D_i);
+        vector<pair<int, double>> tableA_i;
+
+        // 遍历所有可能的变换
+        for (int j = 0; j < bin.length(); j++) {
+            if (bin[j] == '1') {
+                for (int k = j + 1; k < bin.length(); k++) {
+                    if (bin[k] == '1') {
+                        string new_bin = bin;
+                        new_bin[j] = '0';
+                        new_bin[k] = '0';
+                        for (int l = 0; l < bin.length(); l++) {
+                            if (new_bin[l] == '0') {
+                                new_bin[l] = '1';
+                                for (int k = l+1; k < bin.length(); k++){
+                                    if (new_bin[k] == '0') {
+                                        new_bin[k] = '1';
+                                        tableA_i.emplace_back(binToInt(new_bin), x_i);
+                                        new_bin[k] = '0';
+                                    }
+                                }
+                                new_bin[l] = '0';
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 对表 A_i 排序
+        sort(tableA_i.begin(), tableA_i.end());
+        vector<pair<int, double>> tableB_i(tableA_i);
+
+        // 在表 A 中查找 b_i 中的元素
+        auto iter = tableA.begin(); // 初始查找起点为tableA的起点
+        for (const auto& p : tableB_i) {
+            int D_i1 = p.first;
+            double x_i1 = p.second;
+            iter = lower_bound(iter, tableA.end(), make_pair(D_i1, 0.0), [](const auto& a, const auto& b) {
+                return a.first < b.first;
+            });
+            if (iter != tableA.end() && iter->first == D_i1) {
+                twoRDM += x_i * iter->second;
+            }
+        }
+    }
+    auto end = chrono::high_resolution_clock::now();
+
+    // 输出结果
+    cout << "2RDM: " << twoRDM << endl;
+    cout << "Time taken: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << " ms" << endl;
+
+    return 0;
+}
